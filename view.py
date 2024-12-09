@@ -1,54 +1,12 @@
 from tkinter import *
 from tkinter import ttk
+from tkinter import messagebox
 
-lista = [
-    [1, "Joao Futi Muanda", "joao@mail.com", "12", ">"],
-    [2, "Fortnato Mpngo", "joao@mail.com", 12, ">"],
-    [3, "Usando Python", "joao@mail.com", 12, ">"],
-    [4, "Clinton Berclidio", "joao@mail.com", 12, ">"],
-    [5, "A traicao da Julieta", "joao@mail.com", 12, ">"],
-]
+from storage import Storage
+from user_manager import UserManager
+from view_access_control import ViewAccessControl
 
-listaUsers = [
-    {
-        "id": 0,
-        "name": "Jorge",
-        "password": "1234",
-        "products": [
-            [1, "Joao Futi Muanda", "joao@mail.com", "12", ">"],
-            [2, "Fortnato Mpngo", "joao@mail.com", 12, ">"],
-            [3, "Usando Python", "joao@mail.com", 12, ">"],
-            [4, "Clinton Berclidio", "joao@mail.com", 12, ">"],
-            [5, "A traicao da Julieta", "joao@mail.com", 12, ">"],
-        ],
-    },
-    {
-        "id": 1,
-        "name": "Ana",
-        "password": "abcd",
-        "products": [
-            [1, "Joao Futi Muanda", "joao@mail.com", "12", ">"],
-            [2, "Fortnato Mpngo", "joao@mail.com", 12, ">"],
-            [3, "Usando Python", "joao@mail.com", 12, ">"],
-            [4, "Clinton Berclidio", "joao@mail.com", 12, ">"],
-            [5, "A traicao da Julieta", "joao@mail.com", 12, ">"],
-        ],
-    },
-    {
-        "id": 2,
-        "name": "Carlos",
-        "password": "qwerty",
-        "products": [
-            [1, "Joao Futi Muanda", "joao@mail.com", "12", ">"],
-            [2, "Fortnato Mpngo", "joao@mail.com", 12, ">"],
-            [3, "Usando Python", "joao@mail.com", 12, ">"],
-            [4, "Clinton Berclidio", "joao@mail.com", 12, ">"],
-            [5, "A traicao da Julieta", "joao@mail.com", 12, ">"],
-        ],
-    },
-]
-
-
+# Hexadecimal das cores utilizadas
 black = "#00000f"
 white = "#feffff"
 green = "#4fa882"
@@ -60,35 +18,65 @@ lightBlue = "#e9edf5"
 darkOrange = "#ff8c00"
 
 
-class View:
+class View(ViewAccessControl):
 
-    def __init__(self, root):
+    def __init__(self, root, dataSource, onClose):
+        self.usersManager = UserManager(dataSource["users"])
+        self.storage = Storage(dataSource["storage"])
+        self.rootPassword = dataSource["rootPassword"]
+
+        self.onClose = onClose
+
         self.root = root
         self.root.title("Gerenciador de estoque")
         self.root.geometry("1043x453")
         self.root.configure(background=white)
         self.root.resizable(width=False, height=False)
-        # self.root.protocol("WM_DELETE_WINDOW", onClose)
+        self.root.protocol("WM_DELETE_WINDOW", self.__closeWindow)
 
-    def renderHome(self):
+    # métodos privados
+    def __cleanWindow(self):
         for child in self.root.winfo_children():
             child.destroy()
 
-        homeHeader = Frame(self.root, width=770, height=50, bg=darkOrange, relief="flat")
+    def __closeWindow(self):
+        self.onClose()
+        self.root.destroy()
+
+    @ViewAccessControl._validateRootPassword
+    def __addUser(self, name, password, permission):
+        self.usersManager.addUser(name, password, permission, self.renderLoginForm)
+
+    @ViewAccessControl._verifyWritePermission
+    def __addProduct(self, name, description, quantity, permission):
+        self.storage.addProduct(name, description, quantity, action=self.renderHome)
+
+    @ViewAccessControl._verifyWritePermission
+    def __editProduct(self, id, name, description, quantity, permission):
+        self.storage.editProduct(id, name, description, quantity, self.renderHome)
+
+    @ViewAccessControl._verifyWritePermission
+    def __deleteProduct(self, name, permission):
+        self.storage.deleteProduct(name, self.renderHome)
+
+    # métodos públicos
+    def renderHome(self):
+        # abre a página de detahes do produto
+        def abrir_modal(*args):
+            item_id = table.focus()
+            self.renderEditProductForm(int(item_id))
+
+        # limpar a janela principal
+        self.__cleanWindow()
+
+        # construção do header
+        homeHeader = Frame(
+            self.root, width=770, height=50, bg=darkOrange, relief="flat"
+        )
         homeHeader.grid(row=0, column=0)
 
         homeNav = Frame(self.root, width=273, height=50, bg=darkOrange, relief="flat")
         homeNav.grid(row=0, column=1)
-
-        homeSearch = Frame(self.root, width=1043, height=50, bg=darkOrange, relief="solid")
-        homeSearch.grid(row=1, column=0, columnspan=2)
-
-        homeMain = Frame(self.root, width=1043, height=353, bg=white, relief="flat")
-        homeMain.grid(row=2, column=0, columnspan=2, sticky="nsew")
-
-        # Configurando o grid para expandir o homeMain
-        self.root.grid_rowconfigure(2, weight=1)
-        self.root.grid_columnconfigure(0, weight=1)
 
         headerLabel = Label(
             homeHeader,
@@ -109,7 +97,7 @@ class View:
             fg=black,
             relief="raised",
             overrelief="ridge",
-            command=self.renderEditUserForm
+            command=self.renderEditUserForm,
         )
         editClientButton.place(x=0, y=15)
 
@@ -126,26 +114,27 @@ class View:
         )
         createProductButton.place(x=135, y=15)
 
-        tabela_head = ["ID", "Nome", "Descrição", "Quantidade", ""]
+        # corpo principal da tabela
+        homeMain = Frame(self.root, width=1043, height=403, bg=white, relief="flat")
+        homeMain.grid(row=2, column=0, columnspan=2, sticky="nsew")
 
-        tree = ttk.Treeview(
-            homeMain, selectmode="extended", columns=tabela_head, show="headings"
-        )
-
-        vsb = ttk.Scrollbar(homeMain, orient="vertical", command=tree.yview)
-
-        tree.configure(yscrollcommand=vsb.set)
-        tree.grid(column=0, row=0, sticky="nsew")
-        vsb.grid(column=1, row=0, sticky="ns")
-
-        def abrir_modal(*args):
-            item_id = tree.focus()
-            self.renderEditProductForm(int(item_id))
-
-        # Configurando o grid para expandir a tabela dentro de homeMain
+        # configura a tabela para preencher todo o espaço disponível
+        self.root.grid_rowconfigure(2, weight=1)
+        self.root.grid_columnconfigure(0, weight=1)
         homeMain.grid_rowconfigure(0, weight=1)
         homeMain.grid_columnconfigure(0, weight=1)
 
+        # inicia a tabela e o scroll vertical
+        tableHead = ["ID", "Nome", "Descrição", "Quantidade", ""]
+        table = ttk.Treeview(
+            homeMain, selectmode="extended", columns=tableHead, show="headings"
+        )
+        vsb = ttk.Scrollbar(homeMain, orient="vertical", command=table.yview)
+        table.configure(yscrollcommand=vsb.set)
+        table.grid(column=0, row=0, sticky="nsew")
+        vsb.grid(column=1, row=0, sticky="ns")
+
+        # estilização da tabela
         hd = [
             "nw",
             "nw",
@@ -156,28 +145,41 @@ class View:
         h = [40, 280, 480, 100, 5]
         n = 0
 
-        for col in tabela_head:
-            tree.heading(col, text=col.title(), anchor=CENTER)
-            tree.column(col, width=h[n], anchor=hd[n])
+        # insere os itens na tabela
+        for col in tableHead:
+            table.heading(col, text=col.title(), anchor=CENTER)
+            table.column(col, width=h[n], anchor=hd[n])
             n += 1
-
-        for index, item in enumerate(lista):
+        for index, item in enumerate(self.storage.items):
             if index % 2 == 0:
-                tree.insert("", "end", values=item, tags=("even",), iid=index)
+                table.insert("", "end", values=item, tags=("even",), iid=index)
             else:
-                tree.insert("", "end", values=item, tags=("odd",), iid=index)
+                table.insert("", "end", values=item, tags=("odd",), iid=index)
 
-        tree.bind("<<TreeviewSelect>>", abrir_modal)
+        # evento de clique em cada linha
+        table.bind("<<TreeviewSelect>>", abrir_modal)
 
         # Configurando as cores para as tags
-        tree.tag_configure("even", background="#f2f2f2")  # Cor de fundo clara
-        tree.tag_configure("odd", background="#ffffff")
+        table.tag_configure("even", background=lightBlue)
+        table.tag_configure("odd", background=white)
 
-    def renderProductForm(self, *args):
-        for child in self.root.winfo_children():
-            child.destroy()
+    def renderProductForm(self):
+        # cria um produto
+        def submitForm():
+            name = nameEntry.get()
+            description = descricao_text.get("1.0", "end").strip()
+            quantity = int(quantidade_spin.get())
+            self.__addProduct(
+                name,
+                description,
+                quantity,
+                permission=self.usersManager.authenticatedUser["permission"],
+            )
 
-        # Cabeçalho do formulário
+        # limpar a janela principal
+        self.__cleanWindow()
+
+        # cabeçalho do formulário
         formHeader = Frame(self.root, width=1043, height=50, bg="green", relief="flat")
         formHeader.grid(row=0, column=0)
         formHeader.pack_propagate(False)
@@ -197,20 +199,18 @@ class View:
         formMain.grid(row=1, column=0, sticky="nsew", pady=(0, 20), padx=40)
         formMain.grid_propagate(False)
 
-        # Campo para Nome
         Label(formMain, text="Nome:", font="Roboto 8 bold", bg="white").grid(
             row=0, column=0, sticky="w", pady=15
         )
-        nome_entry = Entry(
+        nameEntry = Entry(
             formMain,
             textvariable=StringVar(),
             font="Roboto 8 bold",
             width=50,
             relief="solid",
         )
-        nome_entry.grid(row=0, column=1, pady=5, padx=10, sticky="w")
+        nameEntry.grid(row=0, column=1, pady=5, padx=10, sticky="w")
 
-        # Campo para Descrição (caixa de texto maior)
         Label(formMain, text="Descrição:", font="Roboto 8 bold", bg="white").grid(
             row=1, column=0, sticky="nw", pady=15
         )
@@ -219,7 +219,6 @@ class View:
         )
         descricao_text.grid(row=1, column=1, pady=5, padx=10, sticky="w")
 
-        # Campo para Contador (Spinbox)
         Label(formMain, text="Quantidade:", font="Roboto 8 bold", bg="white").grid(
             row=2, column=0, sticky="w", pady=15
         )
@@ -228,14 +227,7 @@ class View:
         )
         quantidade_spin.grid(row=2, column=1, pady=5, padx=10, sticky="w")
 
-        # Botão de Enviar
-        def submit_form():
-            nome = nome_entry.get()
-            descricao = descricao_text.get("1.0", "end").strip()
-            quantidade = quantidade_spin.get()
-            print(f"Nome: {nome}, Descrição: {descricao}, Quantidade: {quantidade}")
-
-        buttonsFrame =  Frame(formMain, bg="white", relief="flat")
+        buttonsFrame = Frame(formMain, bg="white", relief="flat")
         buttonsFrame.grid(row=3, column=0, pady=20, padx=40, columnspan=2)
 
         return_button = Button(
@@ -250,7 +242,7 @@ class View:
             overrelief="ridge",
         )
         return_button.grid(row=0, column=0, pady=20, padx=4)
-        
+
         submit_button = Button(
             buttonsFrame,
             text="Continuar",
@@ -258,29 +250,42 @@ class View:
             bg="green",
             fg="white",
             width=15,
-            command=submit_form,
+            command=submitForm,
             relief="raised",
             overrelief="ridge",
         )
-        submit_button.grid(row=0, column=2, pady=20, padx=4)
-        
-        delete_button = Button(
-            buttonsFrame,
-            text="Deletar",
-            font="Roboto 8 bold",
-            bg="red",
-            fg="white",
-            width=15,
-            command=submit_form,
-            relief="raised",
-            overrelief="ridge",
-        )
-        delete_button.grid(row=0, column=3, pady=20, padx=4)
+        submit_button.grid(row=0, column=1, pady=20, padx=4)
 
-    def renderEditProductForm(self,id):
+    def renderEditProductForm(self, id):
+        # Edita um produto
+        def submitForm():
+            name = nameEntry.get()
+            description = descricao_text.get("1.0", "end").strip()
+            quantity = int(quantidade_spin.get())
+            self.__editProduct(
+                id,
+                name,
+                description,
+                quantity,
+                permission=self.usersManager.authenticatedUser["permission"],
+            )
+
+        # Deleta o produto atual
+        def deleteProduct():
+            name = nameEntry.get()
+            confirmation = messagebox.askyesno(
+                "Confirmação", "Tem certeza que deseja continuar?"
+            )
+
+            if confirmation:
+                self.__deleteProduct(
+                    name, permission=self.usersManager.authenticatedUser["permission"]
+                )
+            else:
+                messagebox.showinfo("Cancelado", "Ação cancelada!")
+
         # Limpar a janela principal
-        for child in self.root.winfo_children():
-            child.destroy()
+        self.__cleanWindow()
 
         # Cabeçalho do formulário
         formHeader = Frame(self.root, width=1043, height=50, bg="green", relief="flat")
@@ -302,18 +307,17 @@ class View:
         formMain.grid(row=1, column=0, sticky="nsew", pady=(0, 20), padx=40)
         formMain.grid_propagate(False)
 
-        # Campo para Nome
         Label(formMain, text="Nome:", font="Roboto 8 bold", bg="white").grid(
             row=0, column=0, sticky="w", pady=15
         )
-        nome_entry = Entry(
+        nameEntry = Entry(
             formMain,
             textvariable=StringVar(),
             font="Roboto 8 bold",
             width=50,
             relief="solid",
         )
-        nome_entry.grid(row=0, column=1, pady=5, padx=10, sticky="w")
+        nameEntry.grid(row=0, column=1, pady=5, padx=10, sticky="w")
 
         # Campo para Descrição (caixa de texto maior)
         Label(formMain, text="Descrição:", font="Roboto 8 bold", bg="white").grid(
@@ -333,66 +337,76 @@ class View:
         )
         quantidade_spin.grid(row=2, column=1, pady=5, padx=10, sticky="w")
 
-        nome_entry.insert(0, lista[id][1])
-        descricao_text.insert("1.0", lista[id][2])
+        buttonsFrame = Frame(formMain, bg="white", relief="flat")
+        buttonsFrame.grid(row=3, column=0, pady=20, padx=40, columnspan=2)
+
+        return_button = Button(
+            buttonsFrame,
+            text="Voltar",
+            font="Roboto 8 bold",
+            bg="black",
+            fg="white",
+            width=15,
+            relief="raised",
+            overrelief="ridge",
+            command=self.renderHome,
+        )
+        return_button.grid(row=0, column=0, pady=20, padx=4)
+
+        submit_button = Button(
+            buttonsFrame,
+            text="Continuar",
+            font="Roboto 8 bold",
+            bg="green",
+            fg="white",
+            width=15,
+            command=submitForm,
+            relief="raised",
+            overrelief="ridge",
+        )
+        submit_button.grid(row=0, column=2, pady=20, padx=4)
+
+        delete_button = Button(
+            buttonsFrame,
+            text="Deletar",
+            font="Roboto 8 bold",
+            bg="red",
+            fg="white",
+            width=15,
+            command=deleteProduct,
+            relief="raised",
+            overrelief="ridge",
+        )
+        delete_button.grid(row=0, column=3, pady=20, padx=4)
+
+        # Preenche o formulário
+        nameEntry.insert(0, self.storage.items[id][1])
+        descricao_text.insert("1.0", self.storage.items[id][2])
         quantidade_spin.delete(0, "end")
-        quantidade_spin.insert(0, lista[id][3])
+        quantidade_spin.insert(0, self.storage.items[id][3])
 
-        # Botão de Enviar
-        def submit_form():
-            nome = nome_entry.get()
-            descricao = descricao_text.get("1.0", "end").strip()
-            quantidade = quantidade_spin.get()
-            print(f"Nome: {nome}, Descrição: {descricao}, Quantidade: {quantidade}")
+    def renderEditUserForm(self):
+        # Edita o usuário autenticado
+        def submitForm():
+            name = nameEntry.get()
+            password = passwordEntry.get()
+            self.usersManager.editUser(name, password, self.renderHome)
 
-        buttonsFrame =  Frame(formMain, bg="white", relief="flat")
-        buttonsFrame.grid(row=3, column=0, pady=20, padx=40, columnspan=2)
+        # Deleta o usuário logado
+        def deleteUser():
+            confirmation = messagebox.askyesno(
+                "Confirmação", "Tem certeza que deseja continuar?"
+            )
 
-        return_button = Button(
-            buttonsFrame,
-            text="Voltar",
-            font="Roboto 8 bold",
-            bg="black",
-            fg="white",
-            width=15,
-            relief="raised",
-            overrelief="ridge",
-            command=self.renderHome,
-        )
-        return_button.grid(row=0, column=0, pady=20, padx=4)
-        
-        submit_button = Button(
-            buttonsFrame,
-            text="Continuar",
-            font="Roboto 8 bold",
-            bg="green",
-            fg="white",
-            width=15,
-            command=submit_form,
-            relief="raised",
-            overrelief="ridge",
-        )
-        submit_button.grid(row=0, column=2, pady=20, padx=4)
-        
-        delete_button = Button(
-            buttonsFrame,
-            text="Deletar",
-            font="Roboto 8 bold",
-            bg="red",
-            fg="white",
-            width=15,
-            command=submit_form,
-            relief="raised",
-            overrelief="ridge",
-        )
-        delete_button.grid(row=0, column=3, pady=20, padx=4)
+            if confirmation:
+                self.usersManager.deleteUser(self.renderLoginForm)
+            else:
+                messagebox.showinfo("Cancelado", "Ação cancelada!")
 
-    def renderEditUserForm(self, id=1):
         # Limpar a janela principal
-        for child in self.root.winfo_children():
-            child.destroy()
+        self.__cleanWindow()
 
-        # Cabeçalho do formulário
+        # Costrução do header
         formHeader = Frame(self.root, width=1043, height=50, bg=darkBlue, relief="flat")
         formHeader.grid(row=0, column=0)
         formHeader.pack_propagate(False)
@@ -405,49 +419,38 @@ class View:
             fg="white",
             relief="flat",
         )
-        headerLabel.pack(expand =True)
+        headerLabel.pack(expand=True)
 
         # Corpo principal do formulário
         formMain = Frame(self.root, width=1043, height=403, bg="white", relief="flat")
         formMain.grid(row=1, column=0, sticky="nsew", pady=(20, 40))
         formMain.grid_propagate(False)
 
-        # Campo para Nome
         Label(formMain, text="Nome:", font="Roboto 8 bold", bg="white").grid(
             row=0, column=0, sticky="w", pady=15, padx=(40, 0)
         )
-        nome_entry = Entry(
+        nameEntry = Entry(
             formMain,
             textvariable=StringVar(),
             font="Roboto 8 bold",
             width=50,
             relief="solid",
         )
-        nome_entry.grid(row=0, column=1, pady=5, padx=10, sticky="w")
+        nameEntry.grid(row=0, column=1, pady=5, padx=10, sticky="w")
 
-        # Campo para Nome
         Label(formMain, text="Senha:", font="Roboto 8 bold", bg="white").grid(
             row=1, column=0, sticky="w", pady=15, padx=(40, 0)
         )
-        password_entry = Entry(
+        passwordEntry = Entry(
             formMain,
             textvariable=StringVar(),
             font="Roboto 8 bold",
             width=50,
             relief="solid",
         )
-        password_entry.grid(row=1, column=1, pady=5, padx=10, sticky="w")
+        passwordEntry.grid(row=1, column=1, pady=5, padx=10, sticky="w")
 
-        nome_entry.insert(0, listaUsers[id]["name"])
-        password_entry.insert(0, listaUsers[id]["password"])
-
-        # Botão de Enviar
-        def submit_form():
-            nome = nome_entry.get()
-            senha = password_entry.get()
-            print(f"Nome: {nome}, Descrição: {nome}, Quantidade: {senha}")
-            
-        buttonsFrame =  Frame(formMain, bg="white", relief="flat")
+        buttonsFrame = Frame(formMain, bg="white", relief="flat")
         buttonsFrame.grid(row=3, column=0, pady=20, padx=40, columnspan=2)
 
         submit_button = Button(
@@ -462,7 +465,7 @@ class View:
             overrelief="ridge",
         )
         submit_button.grid(row=0, column=0, pady=20, padx=4)
-        
+
         return_button = Button(
             buttonsFrame,
             text="Continuar",
@@ -470,12 +473,12 @@ class View:
             bg="green",
             fg="white",
             width=15,
-            command=submit_form,
+            command=submitForm,
             relief="raised",
             overrelief="ridge",
         )
         return_button.grid(row=0, column=2, pady=20, padx=4)
-        
+
         delete_button = Button(
             buttonsFrame,
             text="Deletar",
@@ -483,24 +486,34 @@ class View:
             bg="red",
             fg="white",
             width=15,
-            command=submit_form,
+            command=deleteUser,
             relief="raised",
             overrelief="ridge",
         )
         delete_button.grid(row=0, column=3, pady=20, padx=4)
 
-    def createLoginForm(self):
-        # Limpar a janela principal
-        for child in self.root.winfo_children():
-            child.destroy()
+        # insere os valores do usuário autenticado
+        nameEntry.insert(0, self.usersManager.authenticatedUser["name"])
+        passwordEntry.insert(0, self.usersManager.authenticatedUser["password"])
 
+    def renderLoginForm(self):
+        # função que faz o login de usuários
+        def submitForm():
+            name = nameEntry.get()
+            password = passwordEntry.get()
+            self.usersManager.loginUser(name, password, self.renderHome)
+
+        # Limpar a janela principal
+        self.__cleanWindow()
+
+        # Construção do header
         formHeader = Frame(self.root, width=1043, height=50, bg=darkBlue, relief="flat")
         formHeader.grid(row=0, column=0)
         formHeader.pack_propagate(False)
 
         headerLabel = Label(
             formHeader,
-            text="Editar usuário",
+            text="Entrar",
             font="Roboto 13 bold",
             bg=darkBlue,
             fg="white",
@@ -513,47 +526,144 @@ class View:
         formMain.grid(row=1, column=0, sticky="nsew", pady=(20, 40))
         formMain.grid_propagate(False)
 
-        # Campo para Nome
         Label(formMain, text="Nome:", font="Roboto 8 bold", bg="white").grid(
             row=0, column=0, sticky="w", pady=15, padx=(40, 0)
         )
-        nome_entry = Entry(
+        nameEntry = Entry(
             formMain,
             textvariable=StringVar(),
             font="Roboto 8 bold",
             width=50,
             relief="solid",
         )
-        nome_entry.grid(row=0, column=1, pady=5, padx=10, sticky="w")
+        nameEntry.grid(row=0, column=1, pady=5, padx=10, sticky="w")
 
-        # Campo para Nome
         Label(formMain, text="Senha:", font="Roboto 8 bold", bg="white").grid(
             row=1, column=0, sticky="w", pady=15, padx=(40, 0)
         )
-        password_entry = Entry(
+        passwordEntry = Entry(
             formMain,
             textvariable=StringVar(),
             font="Roboto 8 bold",
             width=50,
             relief="solid",
         )
-        password_entry.grid(row=1, column=1, pady=5, padx=10, sticky="w")
+        passwordEntry.grid(row=1, column=1, pady=5, padx=10, sticky="w")
 
-        # Botão de Enviar
-        def submit_form():
-            nome = nome_entry.get()
-            senha = password_entry.get()
-            print(f"Nome: {nome}, Descrição: {nome}, Quantidade: {senha}")
+        buttonsFrame = Frame(formMain, bg="white", relief="flat")
+        buttonsFrame.grid(row=3, column=0, pady=20, padx=40, columnspan=2)
 
         submit_button = Button(
-            formMain,
+            buttonsFrame,
+            text="Criar Usuário",
+            font="Roboto 8 bold",
+            bg=darkBlue,
+            fg="white",
+            width=15,
+            command=self.renderCreateUserForm,
+            relief="raised",
+            overrelief="ridge",
+        )
+        submit_button.grid(row=0, column=0, pady=20, padx=4)
+
+        return_button = Button(
+            buttonsFrame,
             text="Continuar",
             font="Roboto 8 bold",
             bg="green",
             fg="white",
             width=15,
-            command=submit_form,
+            command=submitForm,
             relief="raised",
             overrelief="ridge",
         )
-        submit_button.grid(row=3, column=1, pady=20, columnspan=2)
+        return_button.grid(row=0, column=2, pady=20, padx=4)
+
+    def renderCreateUserForm(self):
+        # função que cadastra usuários
+        def submitForm():
+            name = nameEntry.get()
+            password = passwordEntry.get()
+            permission = comboPermission.get()
+            self.__addUser(name, password, permission)
+
+        # limpar a janela principal
+        self.__cleanWindow()
+
+        # construção do header
+        formHeader = Frame(self.root, width=1043, height=50, bg=darkBlue, relief="flat")
+        formHeader.grid(row=0, column=0)
+        formHeader.pack_propagate(False)
+        headerLabel = Label(
+            formHeader,
+            text="Criar usuário",
+            font="Roboto 13 bold",
+            bg=darkBlue,
+            fg="white",
+            relief="flat",
+        )
+        headerLabel.pack(expand=True)
+
+        # Corpo principal do formulário
+        formMain = Frame(self.root, width=1043, height=403, bg="white", relief="flat")
+        formMain.grid(row=1, column=0, sticky="nsew", pady=(20, 40))
+        formMain.grid_propagate(False)
+
+        Label(formMain, text="Nome:", font="Roboto 8 bold", bg="white").grid(
+            row=0, column=0, sticky="w", pady=15, padx=(40, 0)
+        )
+        nameEntry = Entry(
+            formMain,
+            textvariable=StringVar(),
+            font="Roboto 8 bold",
+            width=50,
+            relief="solid",
+        )
+        nameEntry.grid(row=0, column=1, pady=5, padx=10, sticky="w")
+
+        Label(formMain, text="Senha:", font="Roboto 8 bold", bg="white").grid(
+            row=1, column=0, sticky="w", pady=15, padx=(40, 0)
+        )
+        passwordEntry = Entry(
+            formMain,
+            textvariable=StringVar(),
+            font="Roboto 8 bold",
+            width=50,
+            relief="solid",
+        )
+        passwordEntry.grid(row=1, column=1, pady=5, padx=10, sticky="w")
+
+        Label(formMain, text="Permissão: ", font="Roboto 8 bold", bg="white").grid(
+            row=2, column=0, sticky="w", pady=15, padx=(40, 0)
+        )
+        options = ["leitura", "escrita"]
+        comboPermission = ttk.Combobox(formMain, values=options)
+        comboPermission.grid(row=2, column=1, pady=5, padx=10, sticky="w")
+        comboPermission.set("Selecione uma opção")
+
+        buttonsFrame = Frame(formMain, bg="white", relief="flat")
+        buttonsFrame.grid(row=3, column=0, pady=20, padx=40, columnspan=2)
+        return_button = Button(
+            buttonsFrame,
+            text="Voltar",
+            font="Roboto 8 bold",
+            bg="black",
+            fg="white",
+            width=15,
+            command=self.renderLoginForm,
+            relief="raised",
+            overrelief="ridge",
+        )
+        return_button.grid(row=0, column=0, pady=20, padx=4)
+        submit_button = Button(
+            buttonsFrame,
+            text="Continuar",
+            font="Roboto 8 bold",
+            bg="green",
+            fg="white",
+            width=15,
+            command=submitForm,
+            relief="raised",
+            overrelief="ridge",
+        )
+        submit_button.grid(row=0, column=2, pady=20, padx=4)

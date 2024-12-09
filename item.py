@@ -3,24 +3,43 @@ from tkinter import messagebox
 
 class Item:
 
-    def verifyItem(func):
-        def wrapper(name, description, quantity):
-            if len(name) == 0:
-                return messagebox.showerror("Erro", "Nome inválido")
-            elif quantity < 1:
-                return messagebox.showerror("Erro", "Quantidade inválida")
-            else:
-                return func(name, description, quantity)
+    def __init__(self, id, name, description, quantity, items):
+        if len(name) == 0:
+            return messagebox.showerror("Erro", "Nome inválido")
+        elif quantity < 1 and not (type(quantity) == int):
+            return messagebox.showerror("Erro", "Quantidade inválida")
+        elif any(item[1] == name for item in items):
+            return messagebox.showerror("Erro", "Esse produto já existe")
+        else:
+            self.__id = id
+            self.__name = name
+            self.__description = description
+            self.__quantity = quantity
+            self.__items = items
 
-        return wrapper
+    @property
+    def name(self):
+        return self.__name
 
-    @verifyItem
-    def __init__(self, name, description, quantity):
-        self.name = name
-        self.description = description
-        self.quantity = quantity
+    @name.setter
+    def name(self, value):
+        if len(value) == 0:
+            return messagebox.showerror("Erro", "Nome inválido")
+        elif any(item[1] == value for item in self.__items):
+            return messagebox.showerror("Erro", "Esse produto já existe")
+        else:
+            self.__name = value
 
-        self.__saveItem()
+    @property
+    def quantity(self):
+        return self.__quantity
 
-    def __saveItem(self):
-        pass
+    @quantity.setter
+    def quantity(self, value):
+        if value < 1 and not (type(value) == int):
+            return messagebox.showerror("Erro", "Quantidade inválida")
+        else:
+            self.__quantity = value
+
+    def toListable(self):
+        return [self.__id, self.__name, self.__description, self.__quantity, ">"]
