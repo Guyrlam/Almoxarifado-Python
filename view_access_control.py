@@ -16,11 +16,11 @@ class ViewAccessControl:
     def _validateRootPassword(func):
         def wrapper(self, name, password, permission):
             if permission == "escrita":
-                password = simpledialog.askstring(
+                passwordEntry = simpledialog.askstring(
                     "Senha", "Digite a senha do usuário root:", show="*"
                 )
 
-                if not (password == self.rootPassword):
+                if not (passwordEntry == self.rootPassword):
                     return messagebox.showerror("Erro", "Senha incorreta!")
 
             func(self, name, password, permission)
