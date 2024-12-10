@@ -62,7 +62,7 @@ class View(ViewAccessControl):
     # métodos públicos
     def renderHome(self):
         # abre a página de detahes do produto
-        def abrir_modal(*args):
+        def openDetails(*args):
             item_id = table.focus()
             self.renderEditProductForm(int(item_id))
 
@@ -74,10 +74,6 @@ class View(ViewAccessControl):
             self.root, width=770, height=50, bg=darkOrange, relief="flat"
         )
         homeHeader.grid(row=0, column=0)
-
-        homeNav = Frame(self.root, width=273, height=50, bg=darkOrange, relief="flat")
-        homeNav.grid(row=0, column=1)
-
         headerLabel = Label(
             homeHeader,
             text="Gerenciador de estoque",
@@ -87,6 +83,9 @@ class View(ViewAccessControl):
             relief="flat",
         )
         headerLabel.place(x=10, y=10)
+
+        homeNav = Frame(self.root, width=273, height=50, bg=darkOrange, relief="flat")
+        homeNav.grid(row=0, column=1)
 
         editClientButton = Button(
             homeNav,
@@ -135,20 +134,20 @@ class View(ViewAccessControl):
         vsb.grid(column=1, row=0, sticky="ns")
 
         # estilização da tabela
-        hd = [
+        wd = [
             "nw",
             "nw",
             "nw",
             "center",
             "ne",
         ]
-        h = [40, 280, 480, 100, 5]
+        w = [40, 280, 480, 100, 5]
         n = 0
 
         # insere os itens na tabela
         for col in tableHead:
             table.heading(col, text=col.title(), anchor=CENTER)
-            table.column(col, width=h[n], anchor=hd[n])
+            table.column(col, width=w[n], anchor=wd[n])
             n += 1
         for index, item in enumerate(self.storage.items):
             if index % 2 == 0:
@@ -157,7 +156,7 @@ class View(ViewAccessControl):
                 table.insert("", "end", values=item, tags=("odd",), iid=index)
 
         # evento de clique em cada linha
-        table.bind("<<TreeviewSelect>>", abrir_modal)
+        table.bind("<<TreeviewSelect>>", openDetails)
 
         # Configurando as cores para as tags
         table.tag_configure("even", background=lightBlue)
